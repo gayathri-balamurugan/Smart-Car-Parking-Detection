@@ -1,0 +1,90 @@
+
+from ultralytics import YOLO
+import cv2
+import serial
+import time
+
+
+arduino = serial.Serial("COM3", 9600, timeout=1)
+
+time.sleep(2)
+
+print("Arduino connected successfully")
+
+
+model = YOLO("yolov8n.pt")
+
+print("YOLO model loaded successfully")
+
+
+cap = cv2.VideoCapture(0)
+
+if not cap.isOpened():
+    print("Camera not detected")
+    arduino.close()
+    raise SystemExit
+
+print("Camera started successfully")
+
+previous_state = None
+
+try:
+
+    while True:
+
+        ret, frame = cap.read()
+
+        if not ret:
+            print("Image capture failed")
+            break
+
+        
+        results = model.predict(
+            frame,
+            conf=0.25,
+            verbose=False
+        )
+
+        state = '0'
+
+    
+        for box in results[0].boxes:
+
+            class_id = int(box.cls[0])
+            name = model.names[class_id]
+
+            confidence = float(box.conf[0])
+
+            print(name, round(confidence * 100, 2), "%")
+
+            if name == "car":
+                state = '1'
+
+        
+        if state != previous_state:
+
+            arduino.write(state.encode())
+            previous_state = state
+ 
+            if state == '1':
+                print("CAR DETECTED")
+            else:
+                print("NO CAR DETECTED")
+
+        
+        annotated_img = results[0].plot()
+
+        cv2.imshow("Smart Car Detection", annotated_img)
+
+        
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+finally:
+
+    cap.release()
+    cv2.destroyAllWindows()
+    arduino.close()
+    
+    print("Project stopped")
+qui
